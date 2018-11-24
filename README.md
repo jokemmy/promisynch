@@ -1,0 +1,2 @@
+# promisynch
+Synch promise
