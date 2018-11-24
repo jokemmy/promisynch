@@ -5,10 +5,12 @@ import invariant from 'invariant';
 import compose from './compose';
 
 
+// 状态
 const PENDING = 'PENDING';
 const FULFILLED = 'FULFILLED';
 const REJECTED = 'REJECTED';
 
+// relayer
 
 function setStatus( chain, status ) {
   chain._state = status;
