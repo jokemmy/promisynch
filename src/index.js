@@ -6,18 +6,18 @@ import compose from './compose';
 
 
 // 状态
-const PENDING = 'PENDING';
-const FULFILLED = 'FULFILLED';
-const REJECTED = 'REJECTED';
+const PENDING = 'pending';
+const FULFILLED = 'resolved';
+const REJECTED = 'rejected';
 
-// relayer
 
 function setStatus( chain, status ) {
-  chain._state = status;
+  chain.status = status;
 }
 
-
-function getResult( results ) {
+// results 数组
+// return undefined/单个/数组
+function getValue( results ) {
   return results.length <= 1 ? results[0] : results;
 }
 
@@ -62,7 +62,7 @@ function delayThrow( chains ) {
 }
 
 
-// use in always method, catch a error and throw this error or throw the last error
+// use in finally method, catch a error and throw this error or throw the last error
 function throwWapper( callback ) {
   return function( resultSet ) {
     callback(
@@ -137,7 +137,7 @@ const METHOD = {
     const wrapped = compose( catcherWrapper )( callback );
     return chains ? compose( wrapped, tryWapper( chains )) : wrapped;
   },
-  alwaysMethod( chains, callback ) {
+  finallyMethod( chains, callback ) {
     const wrapped = compose( throwWapper )( callback );
     return chains ? compose( wrapped, tryWapper( chains )) : wrapped;
   },
@@ -147,7 +147,7 @@ const METHOD = {
   catchSyncMethod( callback ) {
     return compose( delayThrow, catcherWrapper )( callback );
   },
-  alwaysSyncMethod( callback ) {
+  finallySyncMethod( callback ) {
     return compose( delayThrow, notThrowWapper )( callback );
   }
 };
@@ -157,7 +157,7 @@ function initChain( callback ) {
 
   invariant(
     is.Function( callback ),
-    'Hope: You must pass a resolver function as the first argument to the chain constructor'
+    'You must pass a resolver function as the first argument to the chain constructor'
   );
 
   return function( resolve, reject ) {
@@ -170,10 +170,23 @@ function initChain( callback ) {
 }
 
 
-function removeSet( chain ) {
+function removeSync( chain ) {
   setTimeout(() => {
     delete chain._sync;
   });
+}
+
+
+function bindMethod( func ) {
+  return function( callback ) {
+    if ( this._sync ) {
+      this._set = METHOD[`${func}SyncMethod`]( callback )( this._set );
+      this.value = this._set.result;
+    } else {
+      this._funcs = METHOD[`${func}Method`]( this._funcs, callback );
+    }
+    return this;
+  };
 }
 
 
@@ -204,7 +217,7 @@ class Chain {
       }
     }
     chains.forEach( chain => {
-      chain.always(() => checkAll( chains )).catch(() => {});
+      chain.finally(() => checkAll( chains )).catch(() => {});
     });
     return chn;
   }
@@ -222,37 +235,78 @@ class Chain {
       }
     }
     chains.forEach( chain => {
-      chain.always(() => checkOne( chains )).catch(() => {});
+      chain.finally(() => checkOne( chains )).catch(() => {});
     });
     return chn;
   }
 
   constructor( resolver ) {
-    // this._sync = null;
-    this._result = null;
-    this._state = PENDING;
 
-    let chains = null;
+    this.status = PENDING;
+    this.value = null;
+    let funcs = null;
+
+    const resolve = ( ...value ) => {
+      if ( this.status === PENDING ) {
+        this.value = getValue( value );
+        this.status = FULFILLED;
+        let arrow = {
+          err: null,
+          result: undefined,
+          argument: value,
+          chain: this
+        };
+        if ( funcs ) {
+          arrow = funcs( arrow );
+        } else {
+          removeSync( this );
+          this._sync = true;
+        }
+        this.value = getValue( reason );
+      }
+      return this;
+    };
+
+    const reject = ( ...reason ) => {
+      if ( this.status === PENDING ) {
+        this.status = REJECTED;
+        let arrow = {
+          err: reason,
+          result: undefined,
+          argument: reason,
+          chain: this
+        };
+        if ( funcs ) {
+          arrow = funcs( arrow );
+        } else {
+          removeSync( this );
+          this._sync = true;
+        }
+        this.value = getValue( reason );
+      }
+      return this;
+    };
+
     const initialize = initChain( resolver );
 
-    [ 'resolve', 'reject' ].forEach( func => {
-      const body = this[func].bind( this );
-      this[func] = function( ...args ) {
-        return body( chains, ...args );
-      };
-    });
+    // [ 'resolve', 'reject' ].forEach( func => {
+    //   const body = this[func].bind( this );
+    //   this[func] = function( ...args ) {
+    //     return body( funcs, ...args );
+    //   };
+    // });
 
-    [ 'then', 'catch', 'always' ].forEach( func => {
-      this[func] = callback => {
-        if ( this._sync ) {
-          this._set = METHOD[`${func}SyncMethod`]( callback )( this._set );
-          this._result = this._set.result;
-        } else {
-          chains = METHOD[`${func}Method`]( chains, callback );
-        }
-        return this;
-      };
-    });
+    // [ 'then', 'catch', 'finally' ].forEach( func => {
+    //   this[func] = callback => {
+    //     if ( this._sync ) {
+    //       this._set = METHOD[`${func}SyncMethod`]( callback )( this._set );
+    //       this.value = this._set.result;
+    //     } else {
+    //       this._funcs = METHOD[`${func}Method`]( this._funcs, callback );
+    //     }
+    //     return this;
+    //   };
+    // });
 
     const thenMethod = this.then;
     const catchMethod = this.catch;
@@ -269,47 +323,47 @@ class Chain {
     initialize( this.resolve, this.reject );
   }
 
-  resolve( chains, ...value ) {
-    if ( this._state === PENDING ) {
-      this._result = getResult( value );
-      this._state = FULFILLED;
-      this._set = {
-        err: null,
-        result: undefined,
-        argument: value,
-        chain: this
-      };
-      if ( chains ) {
-        this._set = chains( this._set );
-        // this._result = this._set.result;
-      } else {
-        removeSet( this );
-        this._sync = true;
-      }
-    }
-    return this;
-  }
 
-  reject( chains, ...reason ) {
-    if ( this._state === PENDING ) {
-      this._result = getResult( reason );
-      this._state = REJECTED;
-      this._set = {
-        err: reason,
-        result: undefined,
-        argument: reason,
-        chain: this
-      };
-      if ( chains ) {
-        this._set = chains( this._set );
-        // this._result = this._set.result;
-      } else {
-        removeSet( this );
-        this._sync = true;
-      }
-    }
-    return this;
-  }
+  // resolve( ...value ) {
+  //   // 还没有结束
+  //   if ( this.status === PENDING ) {
+  //     this.value = getValue( value );
+  //     this.status = FULFILLED;
+  //     this._set = {
+  //       err: null,
+  //       result: undefined,
+  //       argument: value,
+  //       chain: this
+  //     };
+  //     if ( this._funcs ) {
+  //       this._set = this._funcs( this._set );
+  //     } else {
+  //       removeSync( this );
+  //       this._sync = true;
+  //     }
+  //   }
+  //   return this;
+  // }
+
+  // reject( ...reason ) {
+  //   if ( this.status === PENDING ) {
+  //     this.value = getValue( reason );
+  //     this.status = REJECTED;
+  //     this._set = {
+  //       err: reason,
+  //       result: undefined,
+  //       argument: reason,
+  //       chain: this
+  //     };
+  //     if ( this._funcs ) {
+  //       this._set = this._funcs( this._set );
+  //     } else {
+  //       removeSync( this );
+  //       this._sync = true;
+  //     }
+  //   }
+  //   return this;
+  // }
 
 }
 
