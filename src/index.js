@@ -15,6 +15,10 @@ function setStatus( chain, status ) {
   chain.status = status;
 }
 
+function createError( error  ) {
+  return `Unhandled Promisynch Rejection: ${error}`;
+}
+
 // results 数组
 // return undefined/单个/数组
 function getValue( results ) {
@@ -33,7 +37,7 @@ function setStatusWapper( chains ) {
       resultSet.err = err;
       resultSet.result = [err];
       setStatus( resultSet.chain, REJECTED );
-      throw err;
+      throw createError( err );
     }
   };
 }
@@ -56,7 +60,7 @@ function delayThrow( chains ) {
       return chains( resultSet );
     } catch ( err ) {
       const timer = setTimeout(() => {
-        throw err;
+        throw createError( err );
       });
       return Object.assign( resultSet, { err, timer, result: [err]});
     }
@@ -73,7 +77,7 @@ function throwWapper( callback ) {
       ...resultSet.argument
     );
     if ( resultSet.err ) {
-      throw resultSet.err;
+      throw createError( resultSet.err );
     }
     return resultSet;
   };
@@ -210,16 +214,19 @@ class Promisynch {
     const promisynch = Promisynch.of();
     const psArray = Array.from( promisynchArray );
     function checkAll( psArray ) {
-      if ( psArray.every( promisynch => promisynch.status !== PENDING )) {
-        const psResults = psArray.map( psResult => psResult.value );
-        if ( psArray.some( promisynch => promisynch.status === REJECTED )) {
-          promisynch.reject( psResults );
+      if ( promisynch.status === PENDING ) {
+        // 发生错误提前返回
+        if ( psArray.some( ps => ps.status === REJECTED )) {
+          const ps = psArray.find( ps => ps.status === REJECTED );
+          promisynch.reject( ps.value );
+        } else if ( psArray.every( ps => ps.status !== PENDING )) {
+          // 所有完成并且没有发生错误,返回所有结果
+          promisynch.resolve( psArray.map( psResult => psResult.value ));
         }
-        promisynch.resolve( psResults );
       }
     }
-    psArray.forEach( promisynch => {
-      promisynch.finally(() => checkAll( psArray )).catch(() => {});
+    psArray.forEach( ps => {
+      ps.finally(() => checkAll( psArray ));
     });
     return promisynch;
   }
@@ -228,16 +235,19 @@ class Promisynch {
     const promisynch = Promisynch.of();
     const psArray = Array.from( promisynchArray );
     function checkOne( psArray ) {
-      if ( psArray.some( ps => ps.status !== PENDING )) {
-        const ps = psArray.find( ps => ps.status !== PENDING );
-        if ( ps.status === REJECTED ) {
-          promisynch.reject( ps.value );
-        }
-        promisynch.resolve( ps.value );
+      if ( promisynch.status === PENDING ) {
+        // if ( psArray.some( ps => ps.status !== PENDING )) {
+          const ps = psArray.find( ps => ps.status !== PENDING );
+          if ( ps.status === REJECTED ) {
+            promisynch.reject( ps.value );
+          } else {
+            promisynch.resolve( ps.value );
+          }
+        // }
       }
     }
-    psArray.forEach( promisynch => {
-      promisynch.finally(() => checkOne( psArray )).catch(() => {});
+    psArray.forEach( ps => {
+      ps.finally(() => checkOne( psArray ));
     });
     return promisynch;
   }
@@ -320,11 +330,12 @@ class Promisynch {
     //   return this;
     // };
 
-    initPromisynch( resolver )( this.resolve, this.reject );
+    initPromisynch( resolver )( this.resolve.bind( this ), this.reject.bind( this ));
   }
 
   resolve( ...value ) {
     if ( this.status === PENDING ) {
+      this.status = FULFILLED;
       let arrow = {
         err: null,
         result: undefined,
@@ -334,31 +345,32 @@ class Promisynch {
       this.value = getValue( value );
       if ( this.funcs ) {
         arrow = this.funcs( arrow );
-        if ( value.length > 0 ) {
+        if ( value.length === 0 ) {
           this.value = arrow.result;
         }
+        delete this.funcs;
       }
-      this.status = FULFILLED;
     }
     return this;
   }
 
-  reject( ...reason ) {
+  reject( reason ) {
     if ( this.status === PENDING ) {
+      this.status = REJECTED;
       let arrow = {
         err: reason,
         result: undefined,
-        argument: reason,
+        argument: [reason],
         chain: this
       };
-      this.value = getValue( reason );
+      this.value = is.Defined( reason ) ? reason : null;
       if ( this.funcs ) {
         arrow = this.funcs( arrow );
-        if ( reason.length > 0 ) {
+        if ( is.Undefined( reason )) {
           this.value = arrow.result;
         }
+        delete this.funcs;
       }
-      this.status = REJECTED;
     }
     return this;
   }

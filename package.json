@@ -1,6 +1,6 @@
 {
-  "name": "Promisynch",
-  "version": "0.0.3",
+  "name": "promisynch",
+  "version": "0.0.5",
   "description": "Promise Synch",
   "repository": "https://github.com/jokemmy/promisynch.git",
   "keywords": [

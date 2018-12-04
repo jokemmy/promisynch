@@ -7,7 +7,7 @@ import babel from 'rollup-plugin-babel';
 
 const env = process.env.NODE_ENV;
 const config = {
-  name: 'promisynch',
+  name: 'Promisynch',
   input: 'src/index.js',
   plugins: [
     nodeResolve({

@@ -8,6 +8,39 @@
   <meta name="viewport" content="width=device-width,initial-scale=1.0,minimum-scale=1.0,user-scalable=no">
   <title></title>
   <script type="text/javascript" src="../dist/promisynch.js"></script>
+  <script type="text/javascript">
+    var p1 = Promisynch.of();
+    var p2 = Promisynch.of();
+    var p3 = Promisynch.all([ p1, p2 ]);
+    p3.then( function( v ) {
+      console.log( 'then', v );
+    }).catch( function( e ) {
+      console.log( 'catch', e );
+    });
+    setTimeout( function() {
+      p2.reject( 1 );
+      setTimeout( function() {
+        p1.reject( 1 );
+      }, 200 );
+    }, 200 );
+
+    // var p3 = new Promise(( resolve, reject ) => {
+    //   setTimeout( function() {
+    //     reject( 1 );
+    //   }, 200 );
+    // });
+    // var p4 = new Promise(( resolve, reject ) => {
+    //   setTimeout( function() {
+    //     reject( 2 );
+    //   }, 400 );
+    // });
+    // var p5 = Promise.all([ p3, p4 ]);
+    // p3.then( function( v ) {
+    //   console.log( 'Promise-then', v );
+    // }).catch( function( e ) {
+    //   console.log( 'Promise-catch', e, p4 );
+    // });
+  </script>
 </head>
 <body>
 
