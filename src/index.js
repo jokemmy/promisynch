@@ -15,9 +15,9 @@ function setStatus( chain, status ) {
   chain.status = status;
 }
 
-function createError( error  ) {
-  return `Unhandled Promisynch Rejection: ${error}`;
-}
+// function createError( error  ) {
+//   return `Unhandled Promisynch Rejection: ${error}`;
+// }
 
 // results 数组
 // return undefined/单个/数组
@@ -37,7 +37,7 @@ function setStatusWapper( chains ) {
       resultSet.err = err;
       resultSet.result = [err];
       setStatus( resultSet.chain, REJECTED );
-      throw createError( err );
+      throw err;
     }
   };
 }
@@ -60,7 +60,7 @@ function delayThrow( chains ) {
       return chains( resultSet );
     } catch ( err ) {
       const timer = setTimeout(() => {
-        throw createError( err );
+        throw err;
       });
       return Object.assign( resultSet, { err, timer, result: [err]});
     }
@@ -77,7 +77,7 @@ function throwWapper( callback ) {
       ...resultSet.argument
     );
     if ( resultSet.err ) {
-      throw createError( resultSet.err );
+      throw resultSet.err;
     }
     return resultSet;
   };
@@ -226,7 +226,7 @@ class Promisynch {
       }
     }
     psArray.forEach( ps => {
-      ps.finally(() => checkAll( psArray ));
+      ps.finally(() => checkAll( psArray )).catch( NOPE );
     });
     return promisynch;
   }
@@ -247,7 +247,7 @@ class Promisynch {
       }
     }
     psArray.forEach( ps => {
-      ps.finally(() => checkOne( psArray ));
+      ps.finally(() => checkOne( psArray )).catch( NOPE );
     });
     return promisynch;
   }

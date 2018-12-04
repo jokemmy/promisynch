@@ -24,22 +24,21 @@
       }, 200 );
     }, 200 );
 
-    // var p3 = new Promise(( resolve, reject ) => {
-    //   setTimeout( function() {
-    //     reject( 1 );
-    //   }, 200 );
-    // });
-    // var p4 = new Promise(( resolve, reject ) => {
-    //   setTimeout( function() {
-    //     reject( 2 );
-    //   }, 400 );
-    // });
-    // var p5 = Promise.all([ p3, p4 ]);
-    // p3.then( function( v ) {
-    //   console.log( 'Promise-then', v );
-    // }).catch( function( e ) {
-    //   console.log( 'Promise-catch', e, p4 );
-    // });
+    var p3 = new Promise(( resolve, reject ) => {
+      setTimeout( function() {
+        reject( 1 );
+      }, 200 );
+    })//.catch(() => {});
+    var p4 = new Promise(( resolve, reject ) => {
+      setTimeout( function() {
+        reject( 2 );
+      }, 400 );
+    }).catch(() => {});
+    var p5 = Promise.all([ p3, p4 ]).catch( function( e ) {
+      console.log( 'Promise-catch', e, p4 );
+    }).then( function( v ) {
+      console.log( 'Promise-then', v );
+    });
   </script>
 </head>
 <body>
