@@ -9,7 +9,7 @@ import compose from './compose';
 const PENDING = 'pending';
 const FULFILLED = 'resolved';
 const REJECTED = 'rejected';
-
+const NOPE = () => {};
 
 function setStatus( chain, status ) {
   chain.status = status;
@@ -18,7 +18,9 @@ function setStatus( chain, status ) {
 // results 数组
 // return undefined/单个/数组
 function getValue( results ) {
-  return results.length <= 1 ? results[0] : results;
+  return results.length === 0
+    ? null : results.length === 1
+    ? results[0] : results;
 }
 
 
@@ -153,7 +155,7 @@ const METHOD = {
 };
 
 
-function initChain( callback ) {
+function initPromisynch( callback ) {
 
   invariant(
     is.Function( callback ),
@@ -170,124 +172,122 @@ function initChain( callback ) {
 }
 
 
-function removeSync( chain ) {
-  setTimeout(() => {
-    delete chain._sync;
-  });
-}
+// function removeSync( chain ) {
+//   setTimeout(() => {
+//     delete chain._sync;
+//   });
+// }
 
 
-function bindMethod( func ) {
-  return function( callback ) {
-    if ( this._sync ) {
-      this._set = METHOD[`${func}SyncMethod`]( callback )( this._set );
-      this.value = this._set.result;
-    } else {
-      this._funcs = METHOD[`${func}Method`]( this._funcs, callback );
-    }
-    return this;
-  };
-}
+// function bindMethod( func ) {
+//   return function( callback ) {
+//     if ( this._sync ) {
+//       this._set = METHOD[`${func}SyncMethod`]( callback )( this._set );
+//       this.value = this._set.result;
+//     } else {
+//       this._funcs = METHOD[`${func}Method`]( this._funcs, callback );
+//     }
+//     return this;
+//   };
+// }
 
 
-class Chain {
+class Promisynch {
 
   static of( resolver ) {
-    return new Chain( resolver );
+    return new Promisynch( resolver || NOPE );
   }
 
   static resolve( value ) {
-    return Chain.of( resolve => resolve( value ));
+    return Promisynch.of( onResolve => onResolve( value ));
   }
 
   static reject( reason ) {
-    return Chain.of(( _, reject ) => reject( reason ));
+    return Promisynch.of(( _, onReject ) => onReject( reason ));
   }
 
-  static all( chains_ ) {
-    const chn = Chain.of(() => {});
-    const chains = Array.from( chains_ );
-    function checkAll( chs ) {
-      if ( chs.every( chain => chain._state !== PENDING )) {
-        const chainResults = chs.map( chain => chain._result );
-        if ( chs.some( chain => chain._state === REJECTED )) {
-          chn.reject( ...chainResults );
+  static all( promisynchArray ) {
+    const promisynch = Promisynch.of();
+    const psArray = Array.from( promisynchArray );
+    function checkAll( psArray ) {
+      if ( psArray.every( promisynch => promisynch.status !== PENDING )) {
+        const psResults = psArray.map( psResult => psResult.value );
+        if ( psArray.some( promisynch => promisynch.status === REJECTED )) {
+          promisynch.reject( psResults );
         }
-        chn.resolve( ...chainResults );
+        promisynch.resolve( psResults );
       }
     }
-    chains.forEach( chain => {
-      chain.finally(() => checkAll( chains )).catch(() => {});
+    psArray.forEach( promisynch => {
+      promisynch.finally(() => checkAll( psArray )).catch(() => {});
     });
-    return chn;
+    return promisynch;
   }
 
-  static race( chains_ ) {
-    const chn = Chain.of(() => {});
-    const chains = Array.from( chains_ );
-    function checkOne( chs ) {
-      if ( chs.some( chain => chain._state !== PENDING )) {
-        const chain = chs.find( chain => chain._state !== PENDING );
-        if ( chain._state === REJECTED ) {
-          chn.reject( chain._result );
+  static race( promisynchArray ) {
+    const promisynch = Promisynch.of();
+    const psArray = Array.from( promisynchArray );
+    function checkOne( psArray ) {
+      if ( psArray.some( ps => ps.status !== PENDING )) {
+        const ps = psArray.find( ps => ps.status !== PENDING );
+        if ( ps.status === REJECTED ) {
+          promisynch.reject( ps.value );
         }
-        chn.resolve( chain._result );
+        promisynch.resolve( ps.value );
       }
     }
-    chains.forEach( chain => {
-      chain.finally(() => checkOne( chains )).catch(() => {});
+    psArray.forEach( promisynch => {
+      promisynch.finally(() => checkOne( psArray )).catch(() => {});
     });
-    return chn;
+    return promisynch;
   }
 
   constructor( resolver ) {
 
     this.status = PENDING;
     this.value = null;
-    let funcs = null;
+    this.funcs = null;
 
-    const resolve = ( ...value ) => {
-      if ( this.status === PENDING ) {
-        this.value = getValue( value );
-        this.status = FULFILLED;
-        let arrow = {
-          err: null,
-          result: undefined,
-          argument: value,
-          chain: this
-        };
-        if ( funcs ) {
-          arrow = funcs( arrow );
-        } else {
-          removeSync( this );
-          this._sync = true;
-        }
-        this.value = getValue( reason );
-      }
-      return this;
-    };
+    // const resolve = ( ...value ) => {
+    //   if ( this.status === PENDING ) {
+    //     let arrow = {
+    //       err: null,
+    //       result: undefined,
+    //       argument: value,
+    //       chain: this
+    //     };
+    //     this.value = getValue( value );
+    //     if ( this.funcs ) {
+    //       arrow = this.funcs( arrow );
+    //       if ( value.length > 0 ) {
+    //         this.value = arrow.result;
+    //       }
+    //     }
+    //     this.status = FULFILLED;
+    //   }
+    //   return this;
+    // };
 
-    const reject = ( ...reason ) => {
-      if ( this.status === PENDING ) {
-        this.status = REJECTED;
-        let arrow = {
-          err: reason,
-          result: undefined,
-          argument: reason,
-          chain: this
-        };
-        if ( funcs ) {
-          arrow = funcs( arrow );
-        } else {
-          removeSync( this );
-          this._sync = true;
-        }
-        this.value = getValue( reason );
-      }
-      return this;
-    };
+    // const reject = ( ...reason ) => {
+    //   if ( this.status === PENDING ) {
+    //     let arrow = {
+    //       err: reason,
+    //       result: undefined,
+    //       argument: reason,
+    //       chain: this
+    //     };
+    //     this.value = getValue( reason );
+    //     if ( this.funcs ) {
+    //       arrow = this.funcs( arrow );
+    //       if ( reason.length > 0 ) {
+    //         this.value = arrow.result;
+    //       }
+    //     }
+    //     this.status = REJECTED;
+    //   }
+    //   return this;
+    // };
 
-    const initialize = initChain( resolver );
 
     // [ 'resolve', 'reject' ].forEach( func => {
     //   const body = this[func].bind( this );
@@ -308,19 +308,108 @@ class Chain {
     //   };
     // });
 
-    const thenMethod = this.then;
-    const catchMethod = this.catch;
-    this.then = ( resolve, reject ) => {
-      if ( is.Function( resolve )) {
-        thenMethod( resolve );
-      }
-      if ( is.Function( reject )) {
-        catchMethod( reject );
-      }
-      return this;
-    };
+    // const thenMethod = this.then;
+    // const catchMethod = this.catch;
+    // this.then = ( resolve, reject ) => {
+    //   if ( is.Function( resolve )) {
+    //     thenMethod( resolve );
+    //   }
+    //   if ( is.Function( reject )) {
+    //     catchMethod( reject );
+    //   }
+    //   return this;
+    // };
 
-    initialize( this.resolve, this.reject );
+    initPromisynch( resolver )( this.resolve, this.reject );
+  }
+
+  resolve( ...value ) {
+    if ( this.status === PENDING ) {
+      let arrow = {
+        err: null,
+        result: undefined,
+        argument: value,
+        chain: this
+      };
+      this.value = getValue( value );
+      if ( this.funcs ) {
+        arrow = this.funcs( arrow );
+        if ( value.length > 0 ) {
+          this.value = arrow.result;
+        }
+      }
+      this.status = FULFILLED;
+    }
+    return this;
+  }
+
+  reject( ...reason ) {
+    if ( this.status === PENDING ) {
+      let arrow = {
+        err: reason,
+        result: undefined,
+        argument: reason,
+        chain: this
+      };
+      this.value = getValue( reason );
+      if ( this.funcs ) {
+        arrow = this.funcs( arrow );
+        if ( reason.length > 0 ) {
+          this.value = arrow.result;
+        }
+      }
+      this.status = REJECTED;
+    }
+    return this;
+  }
+
+  then( onResolve, onReject ) {
+    if ( this.status === PENDING ) {
+      if ( onResolve ) {
+        this.funcs = METHOD.thenMethod( this.funcs, onResolve );
+      }
+      if ( onReject ) {
+        this.funcs = METHOD.catchMethod( this.funcs, onReject );
+      }
+    } else {
+      if ( onResolve ) {
+        this._set = METHOD.thenSyncMethod( onResolve )( this._set );
+        this.value = this._set.result;
+      }
+      if ( onReject ) {
+        this._set = METHOD.catchSyncMethod( onReject )( this._set );
+        this.value = this._set.result;
+      }
+    }
+    return this;
+  }
+
+  catch( onReject ) {
+    if ( this.status === PENDING ) {
+      if ( onReject ) {
+        this.funcs = METHOD.catchMethod( this.funcs, onReject );
+      }
+    } else {
+      if ( onReject ) {
+        this._set = METHOD.catchSyncMethod( onReject )( this._set );
+        this.value = this._set.result;
+      }
+    }
+    return this;
+  }
+
+  finally( onFinally ) {
+    if ( this.status === PENDING ) {
+      if ( onFinally ) {
+        this.funcs = METHOD.finallyMethod( this.funcs, onFinally );
+      }
+    } else {
+      if ( onFinally ) {
+        this._set = METHOD.finallySyncMethod( onFinally )( this._set );
+        this.value = this._set.result;
+      }
+    }
+    return this;
   }
 
 
@@ -367,4 +456,4 @@ class Chain {
 
 }
 
-export default Chain;
+export default Promisynch;
