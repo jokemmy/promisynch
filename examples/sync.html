@@ -9,35 +9,45 @@
   <title></title>
   <script type="text/javascript" src="../dist/promisynch.js"></script>
   <script type="text/javascript">
-    var p1 = Promisynch.of();
-    var p2 = Promisynch.of();
-    var p3 = Promisynch.all([ p1, p2 ]);
-    p3.then( function( v ) {
-      console.log( 'then', v );
-    }).catch( function( e ) {
-      console.log( 'catch', e );
-    });
-    setTimeout( function() {
-      p2.reject( 1 );
-      setTimeout( function() {
-        p1.reject( 1 );
-      }, 200 );
-    }, 200 );
+    // var p1 = Promisynch.of();
+    // var p2 = Promisynch.of();
+    // var p3 = Promisynch.all([ p1, p2 ]);
+    // p3.then( function( v ) {
+    //   console.log( 'then', v );
+    // }).catch( function( e ) {
+    //   console.log( 'catch', e );
+    // });
+    // setTimeout( function() {
+    //   p2.reject( 1 );
+    //   setTimeout( function() {
+    //     p1.reject( 1 );
+    //   }, 200 );
+    // }, 200 );
 
-    var p3 = new Promise(( resolve, reject ) => {
-      setTimeout( function() {
-        reject( 1 );
-      }, 200 );
-    })//.catch(() => {});
-    var p4 = new Promise(( resolve, reject ) => {
-      setTimeout( function() {
-        reject( 2 );
-      }, 400 );
-    }).catch(() => {});
-    var p5 = Promise.all([ p3, p4 ]).catch( function( e ) {
-      console.log( 'Promise-catch', e, p4 );
-    }).then( function( v ) {
-      console.log( 'Promise-then', v );
+    // var p3 = new Promise(( resolve, reject ) => {
+    //   setTimeout( function() {
+    //     reject( 1 );
+    //   }, 200 );
+    // })//.catch(() => {});
+    // var p4 = new Promise(( resolve, reject ) => {
+    //   setTimeout( function() {
+    //     reject( 2 );
+    //   }, 400 );
+    // }).catch(() => {});
+    // var p5 = Promise.all([ p3, p4 ]).catch( function( e ) {
+    //   console.log( 'Promise-catch', e, p4 );
+    // }).then( function( v ) {
+    //   console.log( 'Promise-then', v );
+    // });
+    var p6 = new Promisynch(( resolve, reject ) => {
+      throw 2;
+    });
+    p6.then(() => {
+      console.log( 'p6' );
+    }).catch(( err ) => {
+      console.log( 'p6.error.1:', err );
+    }).catch(() => {
+      console.log( 'p6.error.2:', err );
     });
   </script>
 </head>

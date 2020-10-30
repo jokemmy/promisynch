@@ -451,7 +451,7 @@ function getValue(results) {
   return results.length === 0 ? null : results.length === 1 ? results[0] : results;
 }
 
-function setStatusWapper(chains) {
+function setStatusWrapper(chains) {
   return function (resultSet) {
     try {
       setStatus(resultSet.chain, resultSet.err ? REJECTED : FULFILLED);
@@ -465,7 +465,7 @@ function setStatusWapper(chains) {
   };
 }
 
-function tryWapper(chains) {
+function tryWrapper(chains) {
   return function (resultSet) {
     try {
       return chains(resultSet);
@@ -489,7 +489,7 @@ function delayThrow(chains) {
 }
 
 // use in finally method, catch a error and throw this error or throw the last error
-function throwWapper(callback) {
+function throwWrapper(callback) {
   return function (resultSet) {
     callback.apply(undefined, [resultSet.err || null, resultSet.err ? null : resultSet.result].concat(toConsumableArray(resultSet.argument)));
     if (resultSet.err) {
@@ -499,7 +499,7 @@ function throwWapper(callback) {
   };
 }
 
-function notThrowWapper(callback) {
+function notThrowWrapper(callback) {
   return function (resultSet) {
     callback.apply(undefined, [resultSet.err || null, resultSet.err ? null : resultSet.result].concat(toConsumableArray(resultSet.argument)));
     return resultSet;
@@ -544,25 +544,25 @@ function catcherWrapper(callback) {
 
 var METHOD = {
   thenMethod: function thenMethod(chains, callback) {
-    var wrapped = compose(setStatusWapper, thenerWrapper)(callback);
+    var wrapped = compose(setStatusWrapper, thenerWrapper)(callback);
     return chains ? compose(wrapped, chains) : wrapped;
   },
   catchMethod: function catchMethod(chains, callback) {
     var wrapped = compose(catcherWrapper)(callback);
-    return chains ? compose(wrapped, tryWapper(chains)) : wrapped;
+    return chains ? compose(wrapped, tryWrapper(chains)) : wrapped;
   },
   finallyMethod: function finallyMethod(chains, callback) {
-    var wrapped = compose(throwWapper)(callback);
-    return chains ? compose(wrapped, tryWapper(chains)) : wrapped;
+    var wrapped = compose(throwWrapper)(callback);
+    return chains ? compose(wrapped, tryWrapper(chains)) : wrapped;
   },
   thenSyncMethod: function thenSyncMethod(callback) {
-    return compose(delayThrow, setStatusWapper, thenerWrapper)(callback);
+    return compose(delayThrow, setStatusWrapper, thenerWrapper)(callback);
   },
   catchSyncMethod: function catchSyncMethod(callback) {
     return compose(delayThrow, catcherWrapper)(callback);
   },
   finallySyncMethod: function finallySyncMethod(callback) {
-    return compose(delayThrow, notThrowWapper)(callback);
+    return compose(delayThrow, notThrowWrapper)(callback);
   }
 };
 
@@ -784,6 +784,8 @@ var Promisynch = function () {
             this.value = arrow.result;
           }
           delete this.funcs;
+        } else {
+          this._set = arrow;
         }
       }
       return this;
@@ -806,6 +808,8 @@ var Promisynch = function () {
             this.value = arrow.result;
           }
           delete this.funcs;
+        } else {
+          this._set = arrow;
         }
       }
       return this;

@@ -28,7 +28,7 @@ function getValue( results ) {
 }
 
 
-function setStatusWapper( chains ) {
+function setStatusWrapper( chains ) {
   return function( resultSet ) {
     try {
       setStatus( resultSet.chain, resultSet.err ? REJECTED : FULFILLED );
@@ -43,7 +43,7 @@ function setStatusWapper( chains ) {
 }
 
 
-function tryWapper( chains ) {
+function tryWrapper( chains ) {
   return function( resultSet ) {
     try {
       return chains( resultSet );
@@ -69,7 +69,7 @@ function delayThrow( chains ) {
 
 
 // use in finally method, catch a error and throw this error or throw the last error
-function throwWapper( callback ) {
+function throwWrapper( callback ) {
   return function( resultSet ) {
     callback(
       resultSet.err || null,
@@ -84,7 +84,7 @@ function throwWapper( callback ) {
 }
 
 
-function notThrowWapper( callback ) {
+function notThrowWrapper( callback ) {
   return function( resultSet ) {
     callback(
       resultSet.err || null,
@@ -136,25 +136,25 @@ function catcherWrapper( callback ) {
 
 const METHOD = {
   thenMethod( chains, callback ) {
-    const wrapped = compose( setStatusWapper, thenerWrapper )( callback );
+    const wrapped = compose( setStatusWrapper, thenerWrapper )( callback );
     return chains ? compose( wrapped, chains ) : wrapped;
   },
   catchMethod( chains, callback ) {
     const wrapped = compose( catcherWrapper )( callback );
-    return chains ? compose( wrapped, tryWapper( chains )) : wrapped;
+    return chains ? compose( wrapped, tryWrapper( chains )) : wrapped;
   },
   finallyMethod( chains, callback ) {
-    const wrapped = compose( throwWapper )( callback );
-    return chains ? compose( wrapped, tryWapper( chains )) : wrapped;
+    const wrapped = compose( throwWrapper )( callback );
+    return chains ? compose( wrapped, tryWrapper( chains )) : wrapped;
   },
   thenSyncMethod( callback ) {
-    return compose( delayThrow, setStatusWapper, thenerWrapper )( callback );
+    return compose( delayThrow, setStatusWrapper, thenerWrapper )( callback );
   },
   catchSyncMethod( callback ) {
     return compose( delayThrow, catcherWrapper )( callback );
   },
   finallySyncMethod( callback ) {
-    return compose( delayThrow, notThrowWapper )( callback );
+    return compose( delayThrow, notThrowWrapper )( callback );
   }
 };
 
@@ -174,26 +174,6 @@ function initPromisynch( callback ) {
     }
   };
 }
-
-
-// function removeSync( chain ) {
-//   setTimeout(() => {
-//     delete chain._sync;
-//   });
-// }
-
-
-// function bindMethod( func ) {
-//   return function( callback ) {
-//     if ( this._sync ) {
-//       this._set = METHOD[`${func}SyncMethod`]( callback )( this._set );
-//       this.value = this._set.result;
-//     } else {
-//       this._funcs = METHOD[`${func}Method`]( this._funcs, callback );
-//     }
-//     return this;
-//   };
-// }
 
 
 class Promisynch {
@@ -258,78 +238,6 @@ class Promisynch {
     this.value = null;
     this.funcs = null;
 
-    // const resolve = ( ...value ) => {
-    //   if ( this.status === PENDING ) {
-    //     let arrow = {
-    //       err: null,
-    //       result: undefined,
-    //       argument: value,
-    //       chain: this
-    //     };
-    //     this.value = getValue( value );
-    //     if ( this.funcs ) {
-    //       arrow = this.funcs( arrow );
-    //       if ( value.length > 0 ) {
-    //         this.value = arrow.result;
-    //       }
-    //     }
-    //     this.status = FULFILLED;
-    //   }
-    //   return this;
-    // };
-
-    // const reject = ( ...reason ) => {
-    //   if ( this.status === PENDING ) {
-    //     let arrow = {
-    //       err: reason,
-    //       result: undefined,
-    //       argument: reason,
-    //       chain: this
-    //     };
-    //     this.value = getValue( reason );
-    //     if ( this.funcs ) {
-    //       arrow = this.funcs( arrow );
-    //       if ( reason.length > 0 ) {
-    //         this.value = arrow.result;
-    //       }
-    //     }
-    //     this.status = REJECTED;
-    //   }
-    //   return this;
-    // };
-
-
-    // [ 'resolve', 'reject' ].forEach( func => {
-    //   const body = this[func].bind( this );
-    //   this[func] = function( ...args ) {
-    //     return body( funcs, ...args );
-    //   };
-    // });
-
-    // [ 'then', 'catch', 'finally' ].forEach( func => {
-    //   this[func] = callback => {
-    //     if ( this._sync ) {
-    //       this._set = METHOD[`${func}SyncMethod`]( callback )( this._set );
-    //       this.value = this._set.result;
-    //     } else {
-    //       this._funcs = METHOD[`${func}Method`]( this._funcs, callback );
-    //     }
-    //     return this;
-    //   };
-    // });
-
-    // const thenMethod = this.then;
-    // const catchMethod = this.catch;
-    // this.then = ( resolve, reject ) => {
-    //   if ( is.Function( resolve )) {
-    //     thenMethod( resolve );
-    //   }
-    //   if ( is.Function( reject )) {
-    //     catchMethod( reject );
-    //   }
-    //   return this;
-    // };
-
     initPromisynch( resolver )( this.resolve.bind( this ), this.reject.bind( this ));
   }
 
@@ -349,6 +257,8 @@ class Promisynch {
           this.value = arrow.result;
         }
         delete this.funcs;
+      } else {
+        this._set = arrow;
       }
     }
     return this;
@@ -370,6 +280,8 @@ class Promisynch {
           this.value = arrow.result;
         }
         delete this.funcs;
+      } else {
+        this._set = arrow;
       }
     }
     return this;
@@ -423,49 +335,6 @@ class Promisynch {
     }
     return this;
   }
-
-
-  // resolve( ...value ) {
-  //   // 还没有结束
-  //   if ( this.status === PENDING ) {
-  //     this.value = getValue( value );
-  //     this.status = FULFILLED;
-  //     this._set = {
-  //       err: null,
-  //       result: undefined,
-  //       argument: value,
-  //       chain: this
-  //     };
-  //     if ( this._funcs ) {
-  //       this._set = this._funcs( this._set );
-  //     } else {
-  //       removeSync( this );
-  //       this._sync = true;
-  //     }
-  //   }
-  //   return this;
-  // }
-
-  // reject( ...reason ) {
-  //   if ( this.status === PENDING ) {
-  //     this.value = getValue( reason );
-  //     this.status = REJECTED;
-  //     this._set = {
-  //       err: reason,
-  //       result: undefined,
-  //       argument: reason,
-  //       chain: this
-  //     };
-  //     if ( this._funcs ) {
-  //       this._set = this._funcs( this._set );
-  //     } else {
-  //       removeSync( this );
-  //       this._sync = true;
-  //     }
-  //   }
-  //   return this;
-  // }
-
 }
 
 export default Promisynch;
