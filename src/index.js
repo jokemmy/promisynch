@@ -59,6 +59,9 @@ function delayThrow( chains ) {
     try {
       return chains( resultSet );
     } catch ( err ) {
+      if ( resultSet.chain._silent === true ) {
+        return Object.assign( resultSet, { err, result: [err]});
+      }
       const timer = setTimeout(() => {
         throw err;
       });
@@ -76,7 +79,7 @@ function throwWrapper( callback ) {
       resultSet.err ? null : resultSet.result,
       ...resultSet.argument
     );
-    if ( resultSet.err ) {
+    if ( resultSet.err !== null ) {
       throw resultSet.err;
     }
     return resultSet;
@@ -96,11 +99,26 @@ function notThrowWrapper( callback ) {
 }
 
 
+function silentWrapper( chains ) {
+  return function( resultSet ) {
+    if ( resultSet.chain._silent === true ) {
+      try {
+        return chains( resultSet );
+      } catch ( err ) {
+        return Object.assign( resultSet, { err, result: [err]});
+      }
+    } else {
+      return chains( resultSet );
+    }
+  };
+}
+
+
 function thenerWrapper( callback ) {
   return function handler( resultSet_ ) {
     const resultSet = Object.assign({}, resultSet_ );
 
-    if ( resultSet.err ) {
+    if ( resultSet.err !== null ) {
       return resultSet;
     }
 
@@ -119,7 +137,7 @@ function catcherWrapper( callback ) {
   return function handler( resultSet_ ) {
     const resultSet = Object.assign({}, resultSet_ );
 
-    if ( !resultSet.err ) {
+    if ( resultSet.err === null ) {
       return resultSet;
     }
 
@@ -129,22 +147,22 @@ function catcherWrapper( callback ) {
     }
 
     resultSet.result = callback( resultSet.err );
-    return Object.assign( resultSet, { err: null });
+    return Object.assign( resultSet, resultSet.chain._bubble === true ? {} : { err: null });
   };
 }
 
 
 const METHOD = {
   thenMethod( chains, callback ) {
-    const wrapped = compose( setStatusWrapper, thenerWrapper )( callback );
+    const wrapped = compose( silentWrapper, setStatusWrapper, thenerWrapper )( callback );
     return chains ? compose( wrapped, chains ) : wrapped;
   },
   catchMethod( chains, callback ) {
-    const wrapped = compose( catcherWrapper )( callback );
+    const wrapped = compose( silentWrapper, catcherWrapper )( callback );
     return chains ? compose( wrapped, tryWrapper( chains )) : wrapped;
   },
   finallyMethod( chains, callback ) {
-    const wrapped = compose( throwWrapper )( callback );
+    const wrapped = compose( silentWrapper, throwWrapper )( callback );
     return chains ? compose( wrapped, tryWrapper( chains )) : wrapped;
   },
   thenSyncMethod( callback ) {
@@ -232,12 +250,30 @@ class Promisynch {
     return promisynch;
   }
 
-  constructor( resolver ) {
+  static silent( promisynch ) {
+    if ( is.Function( promisynch )) {
+      const p = Promisynch.of( promisynch );
+      p._silent = true;
+      return p;
+    }
+    promisynch._silent = true;
+    return promisynch;
+  }
 
+  static bubble( promisynch ) {
+    if ( is.Function( promisynch )) {
+      const p = Promisynch.of( promisynch );
+      p._bubble = true;
+      return p;
+    }
+    promisynch._bubble = true;
+    return promisynch;
+  }
+
+  constructor( resolver ) {
     this.status = PENDING;
     this.value = null;
     this.funcs = null;
-
     initPromisynch( resolver )( this.resolve.bind( this ), this.reject.bind( this ));
   }
 

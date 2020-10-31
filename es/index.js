@@ -57,6 +57,9 @@ function delayThrow(chains) {
     try {
       return chains(resultSet);
     } catch (err) {
+      if (resultSet.chain._silent === true) {
+        return Object.assign(resultSet, { err: err, result: [err] });
+      }
       var timer = setTimeout(function () {
         throw err;
       });
@@ -69,7 +72,7 @@ function delayThrow(chains) {
 function throwWrapper(callback) {
   return function (resultSet) {
     callback.apply(undefined, [resultSet.err || null, resultSet.err ? null : resultSet.result].concat(_toConsumableArray(resultSet.argument)));
-    if (resultSet.err) {
+    if (resultSet.err !== null) {
       throw resultSet.err;
     }
     return resultSet;
@@ -83,11 +86,25 @@ function notThrowWrapper(callback) {
   };
 }
 
+function silentWrapper(chains) {
+  return function (resultSet) {
+    if (resultSet.chain._silent === true) {
+      try {
+        return chains(resultSet);
+      } catch (err) {
+        return Object.assign(resultSet, { err: err, result: [err] });
+      }
+    } else {
+      return chains(resultSet);
+    }
+  };
+}
+
 function thenerWrapper(callback) {
   return function handler(resultSet_) {
     var resultSet = Object.assign({}, resultSet_);
 
-    if (resultSet.err) {
+    if (resultSet.err !== null) {
       return resultSet;
     }
 
@@ -105,7 +122,7 @@ function catcherWrapper(callback) {
   return function handler(resultSet_) {
     var resultSet = Object.assign({}, resultSet_);
 
-    if (!resultSet.err) {
+    if (resultSet.err === null) {
       return resultSet;
     }
 
@@ -115,21 +132,21 @@ function catcherWrapper(callback) {
     }
 
     resultSet.result = callback(resultSet.err);
-    return Object.assign(resultSet, { err: null });
+    return Object.assign(resultSet, resultSet.chain._bubble === true ? {} : { err: null });
   };
 }
 
 var METHOD = {
   thenMethod: function thenMethod(chains, callback) {
-    var wrapped = compose(setStatusWrapper, thenerWrapper)(callback);
+    var wrapped = compose(silentWrapper, setStatusWrapper, thenerWrapper)(callback);
     return chains ? compose(wrapped, chains) : wrapped;
   },
   catchMethod: function catchMethod(chains, callback) {
-    var wrapped = compose(catcherWrapper)(callback);
+    var wrapped = compose(silentWrapper, catcherWrapper)(callback);
     return chains ? compose(wrapped, tryWrapper(chains)) : wrapped;
   },
   finallyMethod: function finallyMethod(chains, callback) {
-    var wrapped = compose(throwWrapper)(callback);
+    var wrapped = compose(silentWrapper, throwWrapper)(callback);
     return chains ? compose(wrapped, tryWrapper(chains)) : wrapped;
   },
   thenSyncMethod: function thenSyncMethod(callback) {
@@ -155,26 +172,6 @@ function initPromisynch(callback) {
     }
   };
 }
-
-// function removeSync( chain ) {
-//   setTimeout(() => {
-//     delete chain._sync;
-//   });
-// }
-
-
-// function bindMethod( func ) {
-//   return function( callback ) {
-//     if ( this._sync ) {
-//       this._set = METHOD[`${func}SyncMethod`]( callback )( this._set );
-//       this.value = this._set.result;
-//     } else {
-//       this._funcs = METHOD[`${func}Method`]( this._funcs, callback );
-//     }
-//     return this;
-//   };
-// }
-
 
 var Promisynch = function () {
   _createClass(Promisynch, null, [{
@@ -254,6 +251,28 @@ var Promisynch = function () {
       });
       return promisynch;
     }
+  }, {
+    key: 'silent',
+    value: function silent(promisynch) {
+      if (is.Function(promisynch)) {
+        var p = Promisynch.of(promisynch);
+        p._silent = true;
+        return p;
+      }
+      promisynch._silent = true;
+      return promisynch;
+    }
+  }, {
+    key: 'bubble',
+    value: function bubble(promisynch) {
+      if (is.Function(promisynch)) {
+        var p = Promisynch.of(promisynch);
+        p._bubble = true;
+        return p;
+      }
+      promisynch._bubble = true;
+      return promisynch;
+    }
   }]);
 
   function Promisynch(resolver) {
@@ -262,79 +281,6 @@ var Promisynch = function () {
     this.status = PENDING;
     this.value = null;
     this.funcs = null;
-
-    // const resolve = ( ...value ) => {
-    //   if ( this.status === PENDING ) {
-    //     let arrow = {
-    //       err: null,
-    //       result: undefined,
-    //       argument: value,
-    //       chain: this
-    //     };
-    //     this.value = getValue( value );
-    //     if ( this.funcs ) {
-    //       arrow = this.funcs( arrow );
-    //       if ( value.length > 0 ) {
-    //         this.value = arrow.result;
-    //       }
-    //     }
-    //     this.status = FULFILLED;
-    //   }
-    //   return this;
-    // };
-
-    // const reject = ( ...reason ) => {
-    //   if ( this.status === PENDING ) {
-    //     let arrow = {
-    //       err: reason,
-    //       result: undefined,
-    //       argument: reason,
-    //       chain: this
-    //     };
-    //     this.value = getValue( reason );
-    //     if ( this.funcs ) {
-    //       arrow = this.funcs( arrow );
-    //       if ( reason.length > 0 ) {
-    //         this.value = arrow.result;
-    //       }
-    //     }
-    //     this.status = REJECTED;
-    //   }
-    //   return this;
-    // };
-
-
-    // [ 'resolve', 'reject' ].forEach( func => {
-    //   const body = this[func].bind( this );
-    //   this[func] = function( ...args ) {
-    //     return body( funcs, ...args );
-    //   };
-    // });
-
-    // [ 'then', 'catch', 'finally' ].forEach( func => {
-    //   this[func] = callback => {
-    //     if ( this._sync ) {
-    //       this._set = METHOD[`${func}SyncMethod`]( callback )( this._set );
-    //       this.value = this._set.result;
-    //     } else {
-    //       this._funcs = METHOD[`${func}Method`]( this._funcs, callback );
-    //     }
-    //     return this;
-    //   };
-    // });
-
-    // const thenMethod = this.then;
-    // const catchMethod = this.catch;
-    // this.then = ( resolve, reject ) => {
-    //   if ( is.Function( resolve )) {
-    //     thenMethod( resolve );
-    //   }
-    //   if ( is.Function( reject )) {
-    //     catchMethod( reject );
-    //   }
-    //   return this;
-    // };
-
     initPromisynch(resolver)(this.resolve.bind(this), this.reject.bind(this));
   }
 
@@ -360,6 +306,8 @@ var Promisynch = function () {
             this.value = arrow.result;
           }
           delete this.funcs;
+        } else {
+          this._set = arrow;
         }
       }
       return this;
@@ -382,6 +330,8 @@ var Promisynch = function () {
             this.value = arrow.result;
           }
           delete this.funcs;
+        } else {
+          this._set = arrow;
         }
       }
       return this;
@@ -438,48 +388,6 @@ var Promisynch = function () {
       }
       return this;
     }
-
-    // resolve( ...value ) {
-    //   // 还没有结束
-    //   if ( this.status === PENDING ) {
-    //     this.value = getValue( value );
-    //     this.status = FULFILLED;
-    //     this._set = {
-    //       err: null,
-    //       result: undefined,
-    //       argument: value,
-    //       chain: this
-    //     };
-    //     if ( this._funcs ) {
-    //       this._set = this._funcs( this._set );
-    //     } else {
-    //       removeSync( this );
-    //       this._sync = true;
-    //     }
-    //   }
-    //   return this;
-    // }
-
-    // reject( ...reason ) {
-    //   if ( this.status === PENDING ) {
-    //     this.value = getValue( reason );
-    //     this.status = REJECTED;
-    //     this._set = {
-    //       err: reason,
-    //       result: undefined,
-    //       argument: reason,
-    //       chain: this
-    //     };
-    //     if ( this._funcs ) {
-    //       this._set = this._funcs( this._set );
-    //     } else {
-    //       removeSync( this );
-    //       this._sync = true;
-    //     }
-    //   }
-    //   return this;
-    // }
-
   }]);
 
   return Promisynch;

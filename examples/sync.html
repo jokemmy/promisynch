@@ -39,16 +39,18 @@
     // }).then( function( v ) {
     //   console.log( 'Promise-then', v );
     // });
-    var p6 = new Promisynch(( resolve, reject ) => {
+    var p6 = Promisynch.bubble( Promisynch.silent( new Promisynch(( resolve, reject ) => {
       throw 2;
-    });
+    })));
     p6.then(() => {
       console.log( 'p6' );
     }).catch(( err ) => {
       console.log( 'p6.error.1:', err );
-    }).catch(() => {
+    }).catch(( err ) => {
       console.log( 'p6.error.2:', err );
     });
+    // var p7 = Promisynch.silent(p6);
+    // p6.reject(11);
   </script>
 </head>
 <body>
