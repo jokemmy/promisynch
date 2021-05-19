@@ -1,8 +1,10 @@
 (function (global, factory) {
-	typeof exports === 'object' && typeof module !== 'undefined' ? module.exports = factory() :
-	typeof define === 'function' && define.amd ? define(factory) :
-	(global.Promisynch = factory());
-}(this, (function () { 'use strict';
+	typeof exports === 'object' && typeof module !== 'undefined' ? module.exports = factory(require('@babel/runtime/helpers/typeof')) :
+	typeof define === 'function' && define.amd ? define(['@babel/runtime/helpers/typeof'], factory) :
+	(global.Promisynch = factory(global._typeof));
+}(this, (function (_typeof) { 'use strict';
+
+_typeof = _typeof && _typeof.hasOwnProperty('default') ? _typeof['default'] : _typeof;
 
 /*!
  * isobject <https://github.com/jonschlinkert/isobject>
@@ -15,19 +17,8 @@ var isobject = function isObject(val) {
   return val != null && typeof val === 'object' && Array.isArray(val) === false;
 };
 
-/*!
- * isobject <https://github.com/jonschlinkert/isobject>
- *
- * Copyright (c) 2014-2017, Jon Schlinkert.
- * Released under the MIT License.
- */
-
-var isobject$1 = function isObject(val) {
-  return val != null && typeof val === 'object' && Array.isArray(val) === false;
-};
-
 function isObjectObject(o) {
-  return isobject$1(o) === true
+  return isobject(o) === true
     && Object.prototype.toString.call(o) === '[object Object]';
 }
 
@@ -121,7 +112,7 @@ var kindOf = function kindOf(val) {
 };
 
 function ctorName(val) {
-  return val.constructor ? val.constructor.name : null;
+  return typeof val.constructor === 'function' ? val.constructor.name : null;
 }
 
 function isArray(val) {
@@ -184,7 +175,6 @@ function isBuffer(val) {
 }
 
 var itis = {};
-
 ['Array', 'Number', 'Function', 'RegExp', 'Boolean', 'Date', 'Error', 'Arguments', 'Null', 'String'].forEach(function (name) {
   itis[name] = function (v) {
     return kindOf(v) === name.toLowerCase();
@@ -207,7 +197,7 @@ var isUndefined = (function (variable) {
   return variable === null || variable === undefined;
 });
 
-function isItClass(Cls) {
+function classOf(Cls) {
   return function (obj) {
     return obj instanceof Cls;
   };
@@ -216,8 +206,6 @@ function isItClass(Cls) {
 var isWindow = function (win) {
   return win != null && win === win.window;
 };
-
-var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
 
 /**
  * nodeType 说明 http://www.w3school.com.cn/jsref/prop_node_nodetype.asp
@@ -247,15 +235,12 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
  * 12 Notation  代表 DTD 中声明的符号
  *   None
  */
-
 var isElement = (function (element) {
-  return (typeof element === 'undefined' ? 'undefined' : _typeof(element)) === 'object' && element.nodeType === 1;
+  return _typeof(element) === 'object' && element.nodeType === 1;
 });
 
-var _typeof$1 = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
-
 var isDocument = (function (element) {
-  return (typeof element === 'undefined' ? 'undefined' : _typeof$1(element)) === 'object' && element.nodeType === 9;
+  return _typeof(element) === 'object' && element.nodeType === 9;
 });
 
 var MAX_ARRAY_INDEX = Math.pow(2, 53) - 1;
@@ -269,8 +254,28 @@ var isArrayLike = function (collection) {
   return itis.Number(length) && length >= 0 && length <= MAX_ARRAY_INDEX;
 };
 
-// Number, Function, RegExp, Boolean, Date, Error, Arguments,
+var isOneOf = function (array) {
+  return function (variable) {
+    return array.indexOf(variable) !== -1;
+  };
+};
+
+var isOneOfType = function (array) {
+  return function (variable) {
+    return array.reduce(function (result, type) {
+      var funName = "is".concat(type[0].toUpperCase() + type.slice(1));
+
+      if (itis[funName]) {
+        return result || itis[funName](variable);
+      }
+
+      return result || false;
+    }, false);
+  };
+};
+
 // PlainObject, Object, Array, ArrayLike, Element
+
 var is = Object.assign(itis, {
   Undefined: isUndefined,
   Defined: isDefined,
@@ -280,7 +285,9 @@ var is = Object.assign(itis, {
   PlainObject: isPlainObject,
   Object: isobject,
   ArrayLike: isArrayLike,
-  isItClass: isItClass
+  classOf: classOf,
+  oneOfType: isOneOfType,
+  oneOf: isOneOf
 });
 
 /**

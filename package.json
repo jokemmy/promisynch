@@ -40,7 +40,7 @@
   "dependencies": {
     "invariant": "^2.2.4",
     "kind-of": "^6.0.2",
-    "whatitis": "^1.1.2"
+    "whatitis": "^1.2.4"
   },
   "devDependencies": {
     "babel-cli": "^6.26.0",
